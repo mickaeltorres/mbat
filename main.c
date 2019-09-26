@@ -14,152 +14,154 @@
 
 #include "mbat.h"
 
-xcb_pixmap_t pix;
+mbat_t mbat;
 
-xcb_window_t create_win(xcb_connection_t *x, xcb_screen_t **scrn, int def_scr)
+void create_win(void)
 {
   xcb_intern_atom_reply_t *wm_rep;
   xcb_screen_iterator_t xsi;
   const xcb_setup_t *setup;
-  xcb_window_t win;
   uint32_t val[5];
   int mask;
   int i;
 
-  setup = xcb_get_setup(x);
+  setup = xcb_get_setup(mbat.x);
   xsi = xcb_setup_roots_iterator(setup);
 
-  for (i = 0; i < def_scr; i++)
+  for (i = 0; i < mbat.def_scr; i++)
     xcb_screen_next(&xsi);
 
-  *scrn = xsi.data;
+  mbat.scrn = xsi.data;
 
-  win = xcb_generate_id(x);
+  mbat.win = xcb_generate_id(mbat.x);
   mask = XCB_CW_EVENT_MASK;
-  i = XCB_EVENT_MASK_EXPOSURE | XCB_EVENT_MASK_ENTER_WINDOW |
+  val[0] = XCB_EVENT_MASK_EXPOSURE | XCB_EVENT_MASK_ENTER_WINDOW |
     XCB_EVENT_MASK_LEAVE_WINDOW;
-  xcb_create_window(x, XCB_COPY_FROM_PARENT, win, (*scrn)->root, 0, -WIN_HEIGHT + 2,
-		    (*scrn)->width_in_pixels, WIN_HEIGHT, 0,
+  xcb_create_window(mbat.x, XCB_COPY_FROM_PARENT, mbat.win, mbat.scrn->root, 0,
+		    -WIN_HEIGHT + 2,
+		    mbat.scrn->width_in_pixels, WIN_HEIGHT, 0,
 		    XCB_WINDOW_CLASS_INPUT_OUTPUT,
-		    (*scrn)->root_visual, mask, &i);
+		    mbat.scrn->root_visual, mask, val);
 
-  i = 1;
-  xcb_change_window_attributes(x, win, XCB_CW_OVERRIDE_REDIRECT, &i);
+  val[0] = 1;
+  xcb_change_window_attributes(mbat.x, mbat.win, XCB_CW_OVERRIDE_REDIRECT, val);
 
-  wm_rep = xcb_intern_atom_reply(x,
-				 xcb_intern_atom(x, 0, 15, "_MOTIF_WM_HINTS"),
+  wm_rep = xcb_intern_atom_reply(mbat.x,
+				 xcb_intern_atom(mbat.x, 0, 15,
+						 "_MOTIF_WM_HINTS"),
 				 NULL);
   val[0] = 2; // flags
   val[2] = 0; // decorations
-  xcb_change_property(x, XCB_PROP_MODE_REPLACE, win, wm_rep->atom,
+  xcb_change_property(mbat.x, XCB_PROP_MODE_REPLACE, mbat.win, wm_rep->atom,
 		      wm_rep->atom, 32, 5, val);
   free(wm_rep);
 
-  pix = xcb_generate_id(x);
-  xcb_create_pixmap(x, (*scrn)->root_depth, pix, (*scrn)->root, (*scrn)->width_in_pixels, WIN_HEIGHT);
-
-  return win;
+  mbat.pix = xcb_generate_id(mbat.x);
+  xcb_create_pixmap(mbat.x, mbat.scrn->root_depth, mbat.pix, mbat.scrn->root,
+		    mbat.scrn->width_in_pixels, WIN_HEIGHT);
 }
 
-xcb_gcontext_t create_color(xcb_connection_t *x, xcb_screen_t *scrn, xcb_window_t win, uint16_t r, uint16_t g, uint16_t b)
+xcb_gcontext_t create_color(uint16_t r, uint16_t g, uint16_t b)
 {
   xcb_alloc_color_reply_t *crep;
   xcb_gcontext_t gc;
   int32_t val[3];
 
-  crep = xcb_alloc_color_reply(x, xcb_alloc_color(x, scrn->default_colormap, r, g, b), NULL);
+  crep = xcb_alloc_color_reply(mbat.x,
+			       xcb_alloc_color(mbat.x,
+					       mbat.scrn->default_colormap,
+					       r, g, b),
+			       NULL);
   if (crep == NULL)
   {
     printf("cannot allocate color\n");
     return EXIT_FAILURE;
   }
 
-  gc = xcb_generate_id(x);
+  gc = xcb_generate_id(mbat.x);
   val[0] = crep->pixel;
-  val[1] = scrn->black_pixel;
+  val[1] = mbat.scrn->black_pixel;
   val[2] = 0;
-  xcb_create_gc(x, gc, win, XCB_GC_FOREGROUND|XCB_GC_BACKGROUND|XCB_GC_GRAPHICS_EXPOSURES, val);
+  xcb_create_gc(mbat.x, gc, mbat.win,
+		XCB_GC_FOREGROUND|XCB_GC_BACKGROUND|XCB_GC_GRAPHICS_EXPOSURES,
+		val);
 
   return gc;
 }
 
-void win_move(xcb_connection_t *x, xcb_window_t win, int32_t X, int32_t Y)
+void win_move(int32_t X, int32_t Y)
 {
   int32_t val[2];
 
   val[0] = X;
   val[1] = Y;
-  xcb_configure_window(x, win, XCB_CONFIG_WINDOW_X | XCB_CONFIG_WINDOW_Y,
+  xcb_configure_window(mbat.x, mbat.win,
+		       XCB_CONFIG_WINDOW_X | XCB_CONFIG_WINDOW_Y,
 		       val);
-  xcb_flush(x);
+  xcb_flush(mbat.x);
 }
 
-void win_event(xcb_connection_t *x, xcb_screen_t *scrn,  xcb_window_t win, xcb_gcontext_t green)
+void win_event(void)
 {
   xcb_generic_event_t *ev;
 
-  ev = xcb_wait_for_event(x);
+  ev = xcb_wait_for_event(mbat.x);
   switch (ev->response_type & ~0x80)
   {
   case XCB_EXPOSE:
-    xcb_copy_area(x, pix, win, green, 0, 0, 0, 0, scrn->width_in_pixels, WIN_HEIGHT);
-    xcb_flush(x);
+    xcb_copy_area(mbat.x, mbat.pix, mbat.win, mbat.green, 0, 0, 0, 0,
+		  mbat.scrn->width_in_pixels, WIN_HEIGHT);
+    xcb_flush(mbat.x);
     break;
   case XCB_ENTER_NOTIFY:
-    win_move(x, win, 0, 0);
+    win_move(0, 0);
     break;
   case XCB_LEAVE_NOTIFY:
-    win_move(x, win, 0, -WIN_HEIGHT + 2);
+    win_move(0, -WIN_HEIGHT + 2);
     break;
   }
 }
 
-void pixmap_update(xcb_connection_t *x, xcb_screen_t *scrn, xcb_window_t win,
-		   xcb_gcontext_t red, xcb_gcontext_t green, xcb_gcontext_t blue,
-		   xcb_gcontext_t black, xcb_gcontext_t txt,
-		   uint32_t pct, uint32_t ac, char *str)
+void pixmap_update(uint32_t pct, uint32_t ac, char *str)
 {
   xcb_rectangle_t bar;
   xcb_gcontext_t gc;
 
   bar.x = 0;
   bar.y = 0;
-  bar.width = scrn->width_in_pixels;
+  bar.width = mbat.scrn->width_in_pixels;
   bar.height = WIN_HEIGHT;
-  xcb_poly_fill_rectangle(x, pix, black, 1, &bar);
+  xcb_poly_fill_rectangle(mbat.x, mbat.pix, mbat.black, 1, &bar);
 
   if (ac == 1)
-    gc = blue;
+    gc = mbat.blue;
   else
   {
     if (pct > 10)
-      gc = green;
+      gc = mbat.green;
     else
-      gc = red;
+      gc = mbat.red;
   }
 
   bar.x = 0;
   bar.y = 0;
-  bar.width = (scrn->width_in_pixels * pct) / 99;
+  bar.width = (mbat.scrn->width_in_pixels * pct) / 99;
   bar.height = WIN_HEIGHT;
-  xcb_poly_fill_rectangle(x, pix, gc, 1, &bar);
+  xcb_poly_fill_rectangle(mbat.x, mbat.pix, gc, 1, &bar);
 
-  xcb_image_text_8(x, strlen(str), pix, txt, 10, 10, str);
+  xcb_image_text_8(mbat.x, strlen(str), mbat.pix, mbat.txt, 10, 10, str);
 
-  xcb_copy_area(x, pix, win, green, 0, 0, 0, 0, scrn->width_in_pixels, WIN_HEIGHT);
+  xcb_copy_area(mbat.x, mbat.pix, mbat.win, mbat.green,
+		0, 0, 0, 0, mbat.scrn->width_in_pixels, WIN_HEIGHT);
 
-  xcb_flush(x);
+  xcb_flush(mbat.x);
 }
 
-void bat_get(int fd, bat_t *bat,
-	     xcb_connection_t *x, xcb_screen_t *scrn, xcb_window_t win,
-	     xcb_gcontext_t red, xcb_gcontext_t green, xcb_gcontext_t blue,
-	     xcb_gcontext_t black, xcb_gcontext_t txt)
+void bat_get(int fd)
 {
   struct apm_power_info api;
   char *str;
 
-  bzero(bat, sizeof(*bat));
   if (ioctl(fd, APM_IOC_GETPOWER, &api) == -1)
   {
     printf("APM_IOC_GETPOWER error\n");
@@ -170,44 +172,31 @@ void bat_get(int fd, bat_t *bat,
     asprintf(&str, " %d%%, charging ", api.battery_life);
   else
     asprintf(&str, " %d%%, %d minutes left ", api.battery_life, api.minutes_left);
-  pixmap_update(x, scrn, win, red, green, blue, black, txt, api.battery_life, api.ac_state == 1, str);
+  pixmap_update(api.battery_life, api.ac_state == 1, str);
   free(str);
 }
 
-void apm_event(int fd, struct kevent *kev, bat_t *bat,
-	       xcb_connection_t *x, xcb_screen_t *scrn, xcb_window_t win,
-	       xcb_gcontext_t red, xcb_gcontext_t green, xcb_gcontext_t blue,
-	       xcb_gcontext_t black, xcb_gcontext_t txt)
+void apm_event(int fd, struct kevent *kev)
 {
   switch (APM_EVENT_TYPE(kev->data))
   {
   case APM_UPDATE_TIME:
   case APM_BATTERY_LOW:
   case APM_POWER_CHANGE:
-    bat_get(fd, bat, x, scrn, win, red, green, blue, black, txt);
+    bat_get(fd);
     break;
   }
 }
 
 int main(int ac, char **av)
 {
-  xcb_gcontext_t black;
-  xcb_gcontext_t green;
-  xcb_gcontext_t blue;
-  xcb_gcontext_t red;
-  xcb_gcontext_t txt;
-  xcb_connection_t *x;
-  xcb_screen_t *scrn;
   struct kevent kev;
-  xcb_window_t win;
-  int def_scr;
-  bat_t bat;
   int fdx;
   int fd;
   int kq;
 
-  x = xcb_connect(NULL, &def_scr);
-  if (x == NULL)
+  mbat.x = xcb_connect(NULL, &(mbat.def_scr));
+  if (mbat.x == NULL)
   {
     printf("cannot open DISPLAY\n");
     return EXIT_FAILURE;
@@ -231,16 +220,16 @@ int main(int ac, char **av)
     return EXIT_SUCCESS;
   }
 
-  win = create_win(x, &scrn, def_scr);
-  black = create_color(x, scrn, win, 0, 0, 0);
-  red = create_color(x, scrn, win, 65535, 0, 0);
-  green = create_color(x, scrn, win, 0, 65535, 0);
-  blue = create_color(x, scrn, win, 0, 0, 65535);
-  txt = create_color(x, scrn, win, 65535, 65535, 65535);
-  bat_get(fd, &bat, x, scrn, win, red, green, blue, black, txt);
-  xcb_map_window(x, win);
-  xcb_flush(x);
-  fdx = xcb_get_file_descriptor(x);
+  create_win();
+  mbat.black = create_color(0, 0, 0);
+  mbat.red = create_color(65535, 0, 0);
+  mbat.green = create_color(0, 65535, 0);
+  mbat.blue = create_color(0, 0, 65535);
+  mbat.txt = create_color(65535, 65535, 65535);
+  bat_get(fd);
+  xcb_map_window(mbat.x, mbat.win);
+  xcb_flush(mbat.x);
+  fdx = xcb_get_file_descriptor(mbat.x);
 
   kq = kqueue();
   if (kq == -1)
@@ -267,13 +256,13 @@ int main(int ac, char **av)
     if (kevent(kq, NULL, 0, &kev, 1, NULL) == 1)
     {
       if (kev.ident == fdx)
-	win_event(x, scrn, win, green);
+	win_event();
       else if (kev.ident == fd)
-	apm_event(fd, &kev, &bat, x, scrn, win, red, green, blue, black, txt);
+	apm_event(fd, &kev);
     }
   }
 
-  xcb_disconnect(x);
+  xcb_disconnect(mbat.x);
 
   return EXIT_SUCCESS;
 }

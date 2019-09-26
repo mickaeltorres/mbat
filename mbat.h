@@ -7,9 +7,16 @@
 
 typedef struct
 {
-  uint32_t pct;
-  uint32_t power;
-  char str[BAT_STR_MAX];
-} bat_t;
+  xcb_connection_t *x;
+  xcb_screen_t *scrn;
+  xcb_window_t win;
+  xcb_gcontext_t red;
+  xcb_gcontext_t green;
+  xcb_gcontext_t blue;
+  xcb_gcontext_t black;
+  xcb_gcontext_t txt;
+  xcb_pixmap_t pix;
+  int def_scr;
+} mbat_t;
 
 #endif

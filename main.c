@@ -149,7 +149,7 @@ void pixmap_update(uint32_t pct, uint32_t ac, char *str)
   bar.height = WIN_HEIGHT;
   xcb_poly_fill_rectangle(mbat.x, mbat.pix, gc, 1, &bar);
 
-  xcb_image_text_8(mbat.x, strlen(str), mbat.pix, mbat.txt, 10, 10, str);
+  xcb_image_text_8(mbat.x, strlen(str), mbat.pix, gc, 10, 10, str);
 
   xcb_copy_area(mbat.x, mbat.pix, mbat.win, mbat.green,
 		0, 0, 0, 0, mbat.scrn->width_in_pixels, WIN_HEIGHT);
@@ -223,9 +223,8 @@ int main(int ac, char **av)
   create_win();
   mbat.black = create_color(0, 0, 0);
   mbat.red = create_color(65535, 0, 0);
-  mbat.green = create_color(0, 65535, 0);
-  mbat.blue = create_color(0, 0, 65535);
-  mbat.txt = create_color(65535, 65535, 65535);
+  mbat.green = create_color(0, 42000, 0);
+  mbat.blue = create_color(12000, 23000, 45535);
   bat_get(fd);
   xcb_map_window(mbat.x, mbat.win);
   xcb_flush(mbat.x);

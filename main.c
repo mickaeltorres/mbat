@@ -44,7 +44,8 @@ void create_win(void)
 		    mbat.scrn->root_visual, mask, val);
 
   val[0] = 1;
-  xcb_change_window_attributes(mbat.x, mbat.win, XCB_CW_OVERRIDE_REDIRECT, val);
+  xcb_change_window_attributes(mbat.x, mbat.win, XCB_CW_OVERRIDE_REDIRECT,
+			       val);
 
   wm_rep = xcb_intern_atom_reply(mbat.x,
 				 xcb_intern_atom(mbat.x, 0, 15,
@@ -149,7 +150,7 @@ void pixmap_update(uint32_t pct, uint32_t ac, char *str)
   bar.height = WIN_HEIGHT;
   xcb_poly_fill_rectangle(mbat.x, mbat.pix, gc, 1, &bar);
 
-  xcb_image_text_8(mbat.x, strlen(str), mbat.pix, gc, 10, 9, str);
+  xcb_image_text_8(mbat.x, strlen(str), mbat.pix, mbat.grey, 10, 9, str);
 
   xcb_copy_area(mbat.x, mbat.pix, mbat.win, mbat.green,
 		0, 0, 0, 0, mbat.scrn->width_in_pixels, WIN_HEIGHT);
@@ -173,9 +174,11 @@ void bat_get(int fd)
   epoch = time(NULL);
   now = localtime(&epoch);
   if (api.ac_state == 1)
-    asprintf(&str, " %02d:%02d | %d%%, charging ", now->tm_hour, now->tm_min, api.battery_life);
+    asprintf(&str, " %02d:%02d | %d%%, charging ",
+	     now->tm_hour, now->tm_min, api.battery_life);
   else
-    asprintf(&str, " %02d:%02d | %d%%, %d minutes left ", now->tm_hour, now->tm_min, api.battery_life, api.minutes_left);
+    asprintf(&str, " %02d:%02d | %d%%, %d minutes left ",
+	     now->tm_hour, now->tm_min, api.battery_life, api.minutes_left);
   pixmap_update(api.battery_life, api.ac_state == 1, str);
   free(str);
 }
@@ -231,6 +234,7 @@ int main(int ac, char **av)
   mbat.red = create_color(65535, 0, 0);
   mbat.green = create_color(0, 42000, 0);
   mbat.blue = create_color(12000, 23000, 45535);
+  mbat.grey = create_color(40000, 40000, 40000);
   bat_get(fd);
   xcb_map_window(mbat.x, mbat.win);
   xcb_flush(mbat.x);

@@ -14,6 +14,7 @@ typedef struct
   xcb_gcontext_t green;
   xcb_gcontext_t blue;
   xcb_gcontext_t black;
+  xcb_gcontext_t grey;
   xcb_pixmap_t pix;
   int def_scr;
 } mbat_t;

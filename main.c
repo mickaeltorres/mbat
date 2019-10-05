@@ -160,6 +160,8 @@ void pixmap_update(uint32_t pct, uint32_t ac, char *str)
 void bat_get(int fd)
 {
   struct apm_power_info api;
+  struct tm *now;
+  time_t epoch;
   char *str;
 
   if (ioctl(fd, APM_IOC_GETPOWER, &api) == -1)
@@ -168,10 +170,12 @@ void bat_get(int fd)
     exit(EXIT_FAILURE);
   }
 
+  epoch = time(NULL);
+  now = localtime(&epoch);
   if (api.ac_state == 1)
-    asprintf(&str, " %d%%, charging ", api.battery_life);
+    asprintf(&str, " %02d:%02d | %d%%, charging ", now->tm_hour, now->tm_min, api.battery_life);
   else
-    asprintf(&str, " %d%%, %d minutes left ", api.battery_life, api.minutes_left);
+    asprintf(&str, " %02d:%02d | %d%%, %d minutes left ", now->tm_hour, now->tm_min, api.battery_life, api.minutes_left);
   pixmap_update(api.battery_life, api.ac_state == 1, str);
   free(str);
 }
@@ -190,8 +194,10 @@ void apm_event(int fd, struct kevent *kev)
 
 int main(int ac, char **av)
 {
+  struct timespec ts;
   struct kevent kev;
   int fdx;
+  int ret;
   int fd;
   int kq;
 
@@ -250,15 +256,21 @@ int main(int ac, char **av)
     return EXIT_FAILURE;
   }
 
+  ts.tv_sec = 5;
+  ts.tv_nsec = 0;
+
   for (;;)
   {
-    if (kevent(kq, NULL, 0, &kev, 1, NULL) == 1)
+    ret = kevent(kq, NULL, 0, &kev, 1, &ts);
+    if (ret == 1)
     {
       if (kev.ident == fdx)
 	win_event();
       else if (kev.ident == fd)
 	apm_event(fd, &kev);
     }
+    else if (ret == 0)
+      bat_get(fd);
   }
 
   xcb_disconnect(mbat.x);

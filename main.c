@@ -149,7 +149,7 @@ void pixmap_update(uint32_t pct, uint32_t ac, char *str)
   bar.height = WIN_HEIGHT;
   xcb_poly_fill_rectangle(mbat.x, mbat.pix, gc, 1, &bar);
 
-  xcb_image_text_8(mbat.x, strlen(str), mbat.pix, gc, 10, 10, str);
+  xcb_image_text_8(mbat.x, strlen(str), mbat.pix, gc, 10, 9, str);
 
   xcb_copy_area(mbat.x, mbat.pix, mbat.win, mbat.green,
 		0, 0, 0, 0, mbat.scrn->width_in_pixels, WIN_HEIGHT);
